@@ -4,9 +4,6 @@ __pycache__/
 venv/
 env/
 
-# Model artifacts
-models/
-
 # Jupyter
 .ipynb_checkpoints/
 

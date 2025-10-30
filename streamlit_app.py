@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 
 import joblib
+import os
+import requests
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -17,6 +19,19 @@ METRICS_PATH = ROOT / "models" / "metrics.json"
 @st.cache_resource
 def load_model(path: Path):
     if not path.exists():
+        # Attempt to download model from environment-provided URL if available
+        model_url = os.environ.get("MODEL_URL")
+        if model_url:
+            try:
+                dest = path
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                r = requests.get(model_url, timeout=20)
+                r.raise_for_status()
+                with open(dest, "wb") as f:
+                    f.write(r.content)
+                return joblib.load(dest)
+            except Exception:
+                return None
         return None
     return joblib.load(path)
 
@@ -85,6 +100,12 @@ with col2:
 
 st.sidebar.title("Controls")
 st.sidebar.write("Model path: ", str(MODEL_PATH))
+st.sidebar.markdown(
+    "**Model availability**: The app looks for `models/pipeline.joblib` in the repo."
+)
+st.sidebar.markdown(
+    "If the model is not in the repo (recommended), set an environment variable `MODEL_URL` in Streamlit Cloud to a downloadable URL (S3 presigned URL, GitHub raw URL, or release asset). The app will attempt to download it at startup."
+)
 
 st.sidebar.header("Sample predictions")
 if model is not None:
