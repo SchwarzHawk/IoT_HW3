@@ -1,0 +1,15 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+venv/
+env/
+
+# Model artifacts
+models/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS files
+Thumbs.db
+desktop.ini
