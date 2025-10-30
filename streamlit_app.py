@@ -112,8 +112,16 @@ def predict_and_explain(model, text: str) -> Tuple[Optional[str], Optional[float
 
 st.set_page_config(page_title="Spam SMS Classifier", layout="wide")
 
-st.markdown("# 📬 Spam SMS Classifier")
-st.markdown("**Logistic Regression** — small, interpretable text classifier for SMS spam detection")
+st.markdown(
+    "<div style='display:flex;align-items:center;gap:16px'><img src='https://raw.githubusercontent.com/SchwarzHawk/IoT_HW3/main/docs/logo.png' alt='logo' width='72' /><div><h1 style='margin:0'>📬 Spam SMS Classifier</h1><p style='margin:0'>Logistic Regression — interpretable SMS spam detection</p></div></div>",
+    unsafe_allow_html=True,
+)
+
+# Small CSS tweaks to match example look-and-feel
+st.markdown(
+    "<style> .stApp { background-color: #f7fafc; } .big-metric { font-size:22px; font-weight:600; }</style>",
+    unsafe_allow_html=True,
+)
 
 model = load_model(MODEL_PATH)
 df = load_dataset(DATASET_PATH)
@@ -143,17 +151,20 @@ with tabs[0]:
                 st.error("No model available to predict.")
             else:
                 label, prob, explanation = predict_and_explain(model, text)
-                st.metric("Prediction", label if label is not None else "-")
+                st.markdown("#### Prediction")
+                st.markdown(f"<div class='big-metric'>{label if label is not None else '-'}</div>", unsafe_allow_html=True)
                 if prob is not None:
-                    st.metric("Spam probability", f"{prob:.3f}")
+                    pct = int(prob * 100)
+                    st.progress(pct)
+                    st.write(f"**Spam probability:** {prob:.3f}")
                 if explanation:
                     st.subheader("Top contributing tokens")
                     st.write("Top positive tokens (towards spam)")
                     pos_df = pd.DataFrame(explanation.get("top_positive", []), columns=["token", "score"]).set_index("token")
-                    st.dataframe(pos_df)
+                    st.table(pos_df)
                     st.write("Top negative tokens (towards ham)")
                     neg_df = pd.DataFrame(explanation.get("top_negative", []), columns=["token", "score"]).set_index("token")
-                    st.dataframe(neg_df)
+                    st.table(neg_df)
 
     with colp2:
         st.subheader("Examples")
@@ -174,8 +185,11 @@ with tabs[1]:
         st.subheader("Class distribution")
         dist = df["label"].value_counts()
         fig, ax = plt.subplots(figsize=(6, 3))
-        sns.barplot(x=dist.index, y=dist.values, ax=ax)
+        colors = ["#4c78a8" if lbl == "ham" else "#e45756" for lbl in dist.index]
+        sns.barplot(x=dist.index, y=dist.values, palette=colors, ax=ax)
         ax.set_ylabel("Count")
+        for i, v in enumerate(dist.values):
+            ax.text(i, v + max(dist.values) * 0.01, str(v), ha='center')
         st.pyplot(fig)
 
         st.subheader("Sample rows")
@@ -200,6 +214,12 @@ with tabs[2]:
         st.metric("Precision (spam)", f"{precision:.3f}")
         st.metric("Recall (spam)", f"{recall:.3f}")
         st.metric("F1 (spam)", f"{f1:.3f}")
+
+        # Show small summary table
+        summary_df = pd.DataFrame(
+            {"metric": ["precision", "recall", "f1"], "value": [precision, recall, f1]}
+        ).set_index("metric")
+        st.table(summary_df)
 
         cm = confusion_matrix(labels, preds, labels=["ham", "spam"]) if len(set(labels)) > 1 else None
         if cm is not None:
