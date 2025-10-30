@@ -214,23 +214,40 @@ else:
             probs = None
 
     if probs is not None:
-        preds = (probs >= decision_threshold).astype(int)
-        # confusion matrix table
+        # Determine positive/negative label values from the trained pipeline if possible
+        model_classes = getattr(model, "classes_", None)
+        if model_classes is not None and len(model_classes) >= 2:
+            neg_label, pos_label = model_classes[0], model_classes[1]
+        else:
+            # fallback: assume binary labels encoded as 0/1
+            neg_label, pos_label = 0, 1
+
+        # Convert probability threshold into predicted label values (same dtype as y_test)
+        preds_labels = np.where(probs >= decision_threshold, pos_label, neg_label)
+
+        # confusion matrix table using original label values
         labels_unique = np.unique(y_test)
-        cm = confusion_matrix(y_test.astype(int), preds, labels=labels_unique)
+        cm = confusion_matrix(y_test, preds_labels, labels=labels_unique)
         cm_df = pd.DataFrame(cm, index=[f"true_{i}" for i in labels_unique], columns=[f"pred_{i}" for i in labels_unique])
         st.table(cm_df)
 
+        # For ROC and PR we need binary ground truth
+        try:
+            y_test_bin = (y_test == pos_label).astype(int)
+        except Exception:
+            # fallback: try to coerce to int
+            y_test_bin = y_test.astype(int)
+
         # ROC / Precision-Recall
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-        fpr, tpr, _ = roc_curve(y_test.astype(int), probs)
+        fpr, tpr, _ = roc_curve(y_test_bin, probs)
         axes[0].plot(fpr, tpr, lw=2)
         axes[0].plot([0, 1], [0, 1], linestyle="--", color="gray")
         axes[0].set_xlabel("FPR")
         axes[0].set_ylabel("TPR")
         axes[0].set_title("ROC")
 
-        prec, rec, _ = precision_recall_curve(y_test.astype(int), probs)
+        prec, rec, _ = precision_recall_curve(y_test_bin, probs)
         axes[1].plot(rec, prec, lw=2)
         axes[1].set_xlabel("Recall")
         axes[1].set_ylabel("Precision")
@@ -238,16 +255,16 @@ else:
 
         st.pyplot(fig)
 
-        # Threshold sweep
+        # Threshold sweep (compute metrics relative to positive label)
         thresholds = np.linspace(0.3, 0.75, 10)
         rows = []
         for t in thresholds:
-            p = (probs >= t).astype(int)
+            p_bin = (probs >= t).astype(int)
             rows.append({
                 "threshold": round(float(t), 2),
-                "precision": round(float(precision_score(y_test.astype(int), p, zero_division=0)), 4),
-                "recall": round(float(recall_score(y_test.astype(int), p, zero_division=0)), 4),
-                "f1": round(float(f1_score(y_test.astype(int), p, zero_division=0)), 4),
+                "precision": round(float(precision_score(y_test_bin, p_bin, zero_division=0)), 4),
+                "recall": round(float(recall_score(y_test_bin, p_bin, zero_division=0)), 4),
+                "f1": round(float(f1_score(y_test_bin, p_bin, zero_division=0)), 4),
             })
         st.subheader("Threshold sweep (precision/recall/f1)")
         st.dataframe(pd.DataFrame(rows))
