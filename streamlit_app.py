@@ -159,7 +159,10 @@ with cols[1]:
     st.subheader("Token replacements in cleaned text (approximate)")
     if df is not None:
         preview = token_replacements_preview(df[text_col].astype(str).tolist())
-        st.dataframe(preview.style.hide_index())
+        # Streamlit does not accept a pandas Styler in st.dataframe on some runtimes;
+        # show a simple table with token as the index instead.
+        preview_display = preview.set_index("token")
+        st.table(preview_display)
     else:
         st.write("—")
 
