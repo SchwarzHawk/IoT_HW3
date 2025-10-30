@@ -126,6 +126,10 @@ st.markdown(
 model = load_model(MODEL_PATH)
 df = load_dataset(DATASET_PATH)
 
+# session state for input so example buttons can populate the textarea
+if "input_text" not in st.session_state:
+    st.session_state["input_text"] = ""
+
 cols = st.columns([3, 1])
 with cols[1]:
     st.write("**Model status**")
@@ -143,7 +147,7 @@ tabs = st.tabs(["Predict", "Dataset", "Metrics"])
 
 with tabs[0]:
     st.header("Predict a message")
-    text = st.text_area("Message text", height=180)
+    text = st.text_area("Message text", height=180, key="input_text")
     colp1, colp2 = st.columns([3, 2])
     with colp1:
         if st.button("Predict"):
@@ -173,9 +177,9 @@ with tabs[0]:
             "Hey, are we still meeting for lunch today?",
             "URGENT! Your account has been compromised. Call us now.",
         ]
-        for ex in examples:
-            if st.button("Use: " + ex[:40] + "..."):
-                text = ex
+        for i, ex in enumerate(examples):
+            if st.button(f"Use example {i+1}"):
+                st.session_state["input_text"] = ex
 
 with tabs[1]:
     st.header("Dataset sample & distribution")
@@ -194,6 +198,10 @@ with tabs[1]:
 
         st.subheader("Sample rows")
         st.dataframe(df.sample(min(10, len(df))))
+
+        # allow users to download the dataset sample
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("Download dataset CSV (sample)", csv, "sms_spam_sample.csv", "text/csv")
     else:
         st.info("Dataset not found in repo. Upload or set MODEL_URL and provide dataset in the repo for Dataset view.")
 
@@ -223,8 +231,16 @@ with tabs[2]:
 
         cm = confusion_matrix(labels, preds, labels=["ham", "spam"]) if len(set(labels)) > 1 else None
         if cm is not None:
-            fig, ax = plt.subplots(figsize=(5, 4))
-            sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=["ham", "spam"], yticklabels=["ham", "spam"], ax=ax)
+            # normalize per-row to show percentages plus annotate counts
+            cm_pct = cm.astype(float) / cm.sum(axis=1)[:, None]
+            fig, ax = plt.subplots(figsize=(6, 5))
+            sns.heatmap(cm_pct, annot=False, cmap="Blues", xticklabels=["ham", "spam"], yticklabels=["ham", "spam"], ax=ax)
+            # annotate counts and percentages
+            for i in range(cm.shape[0]):
+                for j in range(cm.shape[1]):
+                    cnt = cm[i, j]
+                    pct = cm_pct[i, j]
+                    ax.text(j + 0.5 - 0.5, i + 0.5 - 0.5, f"{cnt}\n{pct:.0%}", ha='center', va='center', color='black')
             ax.set_xlabel("Predicted")
             ax.set_ylabel("Actual")
             st.pyplot(fig)
